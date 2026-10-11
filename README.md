@@ -28,8 +28,8 @@ OmniSearch Hub is a modern, responsive, multi-engine search dashboard that allow
 
 📂 Project Structure
 
-OmniSearch-Hub/
-├── omnisearch-hub.html
+Son OmniSearch-Hub/
+├── index.html
 └── README.md
 
 The project uses a single HTML file for the main application, with external libraries loaded through CDNs.
