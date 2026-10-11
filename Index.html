@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071A33">
+  <meta name="description" content="OmniSearch Hub is a multi-engine search dashboard for launching and comparing searches.">
+  <title>OmniSearch Hub — Multi-Engine Search Dashboard</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              google: "#4285F4",
+              bing: "#008373",
+              yahoo: "#6001D2",
+              duckduckgo: "#DE5833",
+              youtube: "#FF0000",
+              copilot: "#0078D4"
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { font-family: Inter, sans-serif; }
+    .glass-panel {
+      background: rgba(17, 24, 39, .78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,.09);
+    }
+    .glass-card {
+      background: rgba(31,41,55,.62);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,.07);
+      transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+    }
+    .glass-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255,255,255,.2);
+      box-shadow: 0 12px 30px -10px rgba(0,0,0,.5);
+    }
+    .engine-chip[aria-pressed="true"] {
+      border-color: rgba(129,140,248,.9);
+      background: rgba(79,70,229,.18);
+      color: white;
+    }
+    .modal-backdrop { background: rgba(2,6,23,.86); }
+    .modal-visible { display: flex !important; opacity: 1 !important; }
+    .modal-visible .modal-panel { transform: scale(1) !important; }
+    .focus-ring:focus-visible { outline: 2px solid #818cf8; outline-offset: 3px; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: rgba(15,23,42,.5); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3); }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen overflow-x-hidden bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
+  <div aria-hidden="true" class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+    <div class="absolute -top-20 left-1/4 h-96 w-96 rounded-full bg-indigo-600/20 blur-3xl"></div>
+    <div class="absolute top-1/3 right-1/4 h-96 w-96 rounded-full bg-cyan-600/15 blur-3xl"></div>
+    <div class="absolute bottom-0 left-1/3 h-[30rem] w-[30rem] rounded-full bg-purple-600/15 blur-3xl"></div>
+  </div>
+
+  <header class="glass-panel sticky top-0 z-40 flex w-full flex-wrap items-center justify-between gap-3 border-x-0 border-t-0 px-4 py-3 sm:px-8">
+    <a href="#" class="flex items-center gap-3 rounded-lg focus-ring" aria-label="OmniSearch Hub home">
+      <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 shadow-lg shadow-indigo-500/30">
+        <i class="fa-solid fa-globe text-lg text-white"></i>
+      </span>
+      <span>
+        <span class="block bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-lg font-bold tracking-tight text-transparent">OmniSearch Hub</span>
+        <span class="hidden text-xs text-slate-400 sm:block">Unified Multi-Engine Search & Comparison</span>
+      </span>
+    </a>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="flex items-center gap-1 rounded-xl border border-white/10 bg-slate-900/80 p-1" role="group" aria-label="View mode">
+        <button id="mode-single-btn" type="button" class="focus-ring rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white" aria-pressed="true">
+          <i class="fa-solid fa-magnifying-glass mr-1"></i> Single Hub
+        </button>
+        <button id="mode-split-btn" type="button" class="focus-ring rounded-lg px-3 py-2 text-xs font-medium text-slate-400 hover:text-white" aria-pressed="false">
+          <i class="fa-solid fa-columns mr-1"></i> Split Compare
+        </button>
+      </div>
+      <button id="history-open-btn" type="button" class="focus-ring relative rounded-xl border border-white/10 bg-slate-900/80 p-3 text-slate-300 transition hover:bg-slate-800 hover:text-white" title="Recent searches" aria-label="Open recent searches">
+        <i class="fa-solid fa-clock-rotate-left"></i>
+        <span id="history-badge" class="absolute -right-1 -top-1 hidden h-4 min-w-4 items-center justify-center rounded-full bg-indigo-500 px-1 text-[10px] font-bold">0</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="mx-auto flex w-full max-w-7xl flex-grow flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
+    <section class="mx-auto flex w-full max-w-3xl flex-col gap-4" aria-labelledby="main-search-title">
+      <div class="text-center">
+        <p class="mb-2 text-xs font-semibold uppercase tracking-[.24em] text-indigo-300">One query. Your choice.</p>
+        <h1 id="main-search-title" class="text-2xl font-extrabold tracking-tight sm:text-3xl">Search the web your way</h1>
+        <p class="mt-2 text-sm text-slate-400">Choose an engine, search instantly, or compare results side by side.</p>
+      </div>
+
+      <div class="glass-panel rounded-2xl p-2.5 shadow-2xl transition focus-within:border-indigo-400/50 focus-within:ring-2 focus-within:ring-indigo-500/30 sm:p-3">
+        <form id="search-form" class="flex flex-col items-center gap-2 sm:flex-row">
+          <label for="engine-select" class="sr-only">Search engine</label>
+          <div class="relative w-full sm:w-44 sm:shrink-0">
+            <select id="engine-select" class="focus-ring w-full appearance-none rounded-xl border border-white/10 bg-slate-900/90 px-3 py-3 pr-9 text-sm text-slate-200">
+              <option value="google">Google</option>
+              <option value="bing">Bing</option>
+              <option value="yahoo">Yahoo</option>
+              <option value="duckduckgo">DuckDuckGo</option>
+              <option value="youtube">YouTube</option>
+              <option value="copilot">Microsoft Copilot</option>
+            </select>
+            <i class="fa-solid fa-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></i>
+          </div>
+
+          <div class="relative w-full flex-grow">
+            <label for="search-input" class="sr-only">Search query</label>
+            <i class="fa-solid fa-magnifying-glass pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input id="search-input" type="search" maxlength="500" autocomplete="off" placeholder="Search anything across engines…" class="focus-ring w-full rounded-xl border border-white/10 bg-slate-900/50 py-3 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-500 focus:bg-slate-900">
+            <button id="clear-input-btn" type="button" class="focus-ring absolute right-3 top-1/2 hidden -translate-y-1/2 p-1 text-slate-500 hover:text-white" aria-label="Clear search">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          <button type="submit" class="focus-ring flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:from-indigo-500 hover:to-purple-500 sm:w-auto">
+            <span>Search</span><i class="fa-solid fa-arrow-right text-xs"></i>
+          </button>
+        </form>
+        <p id="search-status" class="min-h-5 px-2 pt-2 text-xs text-slate-400" role="status" aria-live="polite"></p>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-center gap-2 pt-1" aria-label="Quick engine filters">
+        <span class="mr-1 text-xs font-medium text-slate-400">Quick Filter:</span>
+        <button type="button" data-engine="google" aria-pressed="true" class="engine-chip focus-ring flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-800"><span class="h-2 w-2 rounded-full bg-brand-google"></span>Google</button>
+        <button type="button" data-engine="bing" aria-pressed="false" class="engine-chip focus-ring flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-800"><span class="h-2 w-2 rounded-full bg-brand-bing"></span>Bing</button>
+        <button type="button" data-engine="yahoo" aria-pressed="false" class="engine-chip focus-ring flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-800"><span class="h-2 w-2 rounded-full bg-brand-yahoo"></span>Yahoo</button>
+        <button type="button" data-engine="duckduckgo" aria-pressed="false" class="engine-chip focus-ring flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-800"><span class="h-2 w-2 rounded-full bg-brand-duckduckgo"></span>DuckDuckGo</button>
+        <button type="button" data-engine="youtube" aria-pressed="false" class="engine-chip focus-ring flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-800"><span class="h-2 w-2 rounded-full bg-brand-youtube"></span>YouTube</button>
+        <button type="button" data-engine="copilot" aria-pressed="false" class="engine-chip focus-ring flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-800"><span class="h-2 w-2 rounded-full bg-brand-copilot"></span>Copilot</button>
+      </div>
+      <div id="suggestions" class="hidden overflow-hidden rounded-xl border border-white/10 bg-slate-900/95 shadow-xl" role="listbox" aria-label="Recent search suggestions"></div>
+      <p class="text-center text-[11px] text-slate-500">Tip: press <kbd class="rounded border border-white/10 bg-slate-900 px-1.5 py-0.5">/</kbd> to focus search.</p>
+    </section>
+
+    <section id="view-single" class="flex w-full flex-col gap-6">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 class="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-200"><i class="fa-solid fa-layer-group text-indigo-400"></i> Search Engines Dashboard</h2>
+          <p class="mt-1 text-xs text-slate-400">Enter a query above, then preview a provider or open its search results.</p>
+        </div>
+        <span class="text-xs text-slate-500">6 engines available</span>
+      </div>
+      <div id="engine-cards" class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"></div>
+    </section>
+
+    <section id="view-split" class="hidden w-full flex-col gap-6">
+      <div class="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+        <div>
+          <h2 class="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-200"><i class="fa-solid fa-columns text-indigo-400"></i> Split-View Comparison</h2>
+          <p class="mt-1 text-xs text-slate-400">Choose engines below. If a provider blocks embedding, open its results in a new tab.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-slate-900/80 p-2">
+          <span class="px-1 text-xs font-medium text-slate-400">Engines:</span>
+          <label class="flex cursor-pointer items-center gap-1.5 rounded bg-slate-800/60 px-2 py-1.5 text-xs text-slate-300"><input type="checkbox" value="google" checked class="accent-indigo-500">Google</label>
+          <label class="flex cursor-pointer items-center gap-1.5 rounded bg-slate-800/60 px-2 py-1.5 text-xs text-slate-300"><input type="checkbox" value="bing" checked class="accent-indigo-500">Bing</label>
+          <label class="flex cursor-pointer items-center gap-1.5 rounded bg-slate-800/60 px-2 py-1.5 text-xs text-slate-300"><input type="checkbox" value="yahoo" class="accent-indigo-500">Yahoo</label>
+          <label class="flex cursor-pointer items-center gap-1.5 rounded bg-slate-800/60 px-2 py-1.5 text-xs text-slate-300"><input type="checkbox" value="duckduckgo" checked class="accent-indigo-500">DuckDuckGo</label>
+          <label class="flex cursor-pointer items-center gap-1.5 rounded bg-slate-800/60 px-2 py-1.5 text-xs text-slate-300"><input type="checkbox" value="youtube" class="accent-indigo-500">YouTube</label>
+          <label class="flex cursor-pointer items-center gap-1.5 rounded bg-slate-800/60 px-2 py-1.5 text-xs text-slate-300"><input type="checkbox" value="copilot" class="accent-indigo-500">Copilot</label>
+        </div>
+      </div>
+      <div id="split-grid" class="grid grid-cols-1 gap-5 lg:grid-cols-2"></div>
+    </section>
+  </main>
+
+  <footer class="glass-panel mt-8 border-x-0 border-b-0 px-4 py-6 text-center text-xs text-slate-500">
+    <p>OmniSearch Hub <span class="mx-1">•</span> Glassmorphism UI <span class="mx-1">•</span> Vanilla JavaScript</p>
+    <p class="mt-1">Search requests are sent to the selected provider. Search history is stored locally in this browser.</p>
+  </footer>
+
+  <!-- Preview modal -->
+  <div id="preview-modal" class="modal-backdrop fixed inset-0 z-50 hidden items-center justify-center p-3 opacity-0 transition-opacity duration-200 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+    <div class="modal-panel glass-panel flex h-[88vh] w-full max-w-6xl scale-95 flex-col overflow-hidden rounded-2xl shadow-2xl transition-transform duration-200">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5">
+        <div class="min-w-0">
+          <h2 id="preview-title" class="truncate font-semibold">Search preview</h2>
+          <p class="text-xs text-slate-400">If the page does not load, use Open in new tab.</p>
+        </div>
+        <div class="flex gap-2">
+          <button id="preview-open-external" type="button" class="focus-ring rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold hover:bg-indigo-500">Open in new tab <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i></button>
+          <button id="preview-close-btn" type="button" class="focus-ring rounded-lg bg-slate-800 px-3 py-2 text-xs hover:bg-slate-700" aria-label="Close preview">Close <i class="fa-solid fa-xmark ml-1"></i></button>
+        </div>
+      </div>
+      <div class="border-b border-white/10 bg-slate-900/70 px-4 py-2 text-xs text-amber-200/90">
+        Some search providers prevent their pages from being embedded. A blank preview does not mean the search failed.
+      </div>
+      <iframe id="preview-frame" title="Search engine preview" class="min-h-0 w-full flex-1 border-0 bg-white" referrerpolicy="no-referrer"></iframe>
+    </div>
+  </div>
+
+  <!-- History modal -->
+  <div id="history-modal" class="modal-backdrop fixed inset-0 z-[60] hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="history-title">
+    <div class="glass-panel flex max-h-[82vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl shadow-2xl">
+      <div class="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+        <div>
+          <h2 id="history-title" class="text-lg font-bold">Recent searches</h2>
+          <p class="mt-1 text-xs text-slate-400">Stored only in this browser on this device.</p>
+        </div>
+        <button id="history-close-btn" type="button" class="focus-ring rounded-lg bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700">Close <i class="fa-solid fa-xmark ml-1"></i></button>
+      </div>
+      <div class="flex items-center justify-between gap-3 px-5 py-3">
+        <span id="history-count" class="text-xs text-slate-400">0 searches</span>
+        <button id="history-clear-btn" type="button" class="focus-ring rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300 hover:bg-red-500/20">Clear history</button>
+      </div>
+      <div id="history-list" class="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 pb-5"></div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const HISTORY_KEY = "omnisearch-hub-history-v1";
+      const MAX_HISTORY = 30;
+
+      const engines = {
+        google: {
+          name: "Google Search", shortName: "Google", color: "#4285F4",
+          icon: "fa-brands fa-google", label: "Web & Images",
+          description: "Search the web for websites, news, images, answers, and more.",
+          url: q => "https://www.google.com/search?q=" + encodeURIComponent(q)
+        },
+        bing: {
+          name: "Microsoft Bing", shortName: "Bing", color: "#008373",
+          icon: "fa-brands fa-microsoft", label: "Discovery",
+          description: "Explore web results, rich media, news, and Microsoft search tools.",
+          url: q => "https://www.bing.com/search?q=" + encodeURIComponent(q)
+        },
+        yahoo: {
+          name: "Yahoo Search", shortName: "Yahoo", color: "#6001D2",
+          icon: "fa-brands fa-yahoo", label: "Portal & News",
+          description: "Search the web and discover news, finance, and other content.",
+          url: q => "https://search.yahoo.com/search?p=" + encodeURIComponent(q)
+        },
+        duckduckgo: {
+          name: "DuckDuckGo", shortName: "DuckDuckGo", color: "#DE5833",
+          icon: "fa-solid fa-shield-halved", label: "Privacy",
+          description: "Search the web with DuckDuckGo's privacy-focused search experience.",
+          url: q => "https://duckduckgo.com/?q=" + encodeURIComponent(q)
+        },
+        youtube: {
+          name: "YouTube", shortName: "YouTube", color: "#FF0000",
+          icon: "fa-brands fa-youtube", label: "Video",
+          description: "Find videos, music, tutorials, documentaries, and live streams.",
+          url: q => "https://www.youtube.com/results?search_query=" + encodeURIComponent(q)
+        },
+        copilot: {
+          name: "Microsoft Copilot", shortName: "Copilot", color: "#0078D4",
+          icon: "fa-solid fa-robot", label: "AI Assistant",
+          description: "Open Microsoft's AI assistant for questions, brainstorming, and help.",
+          url: q => "https://copilot.microsoft.com/?q=" + encodeURIComponent(q)
+        }
+      };
+
+      const $ = id => document.getElementById(id);
+      const input = $("search-input");
+      const select = $("engine-select");
+      const status = $("search-status");
+      const cards = $("engine-cards");
+      const splitGrid = $("split-grid");
+      let currentQuery = "";
+      let activePreviewEngine = "google";
+      let lastFocusedElement = null;
+      let suggestionIndex = -1;
+
+      function announce(message) {
+        status.textContent = message;
+      }
+
+      function selectedEngine() {
+        return engines[select.value] ? select.value : "google";
+      }
+
+      function queryValue() {
+        return input.value.trim();
+      }
+
+      function searchUrl(engine, query) {
+        if (!engines[engine]) throw new Error("Unknown search engine.");
+        return engines[engine].url(query);
+      }
+
+      function getHistory() {
+        try {
+          const data = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+          if (!Array.isArray(data)) return [];
+          return data.filter(item =>
+            item && typeof item.query === "string" &&
+            typeof item.engine === "string" && engines[item.engine] &&
+            typeof item.time === "string"
+          );
+        } catch {
+          return [];
+        }
+      }
+
+      function writeHistory(items) {
+        try {
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, MAX_HISTORY)));
+          updateHistoryBadge();
+          return true;
+        } catch {
+          announce("Search opened, but this browser could not save search history.");
+          updateHistoryBadge();
+          return false;
+        }
+      }
+
+      function saveHistory(query, engine) {
+        if (!query || !engines[engine]) return;
+        const history = getHistory().filter(item =>
+          !(item.query.toLowerCase() === query.toLowerCase() && item.engine === engine)
+        );
+        history.unshift({ query, engine, time: new Date().toISOString() });
+        writeHistory(history);
+      }
+
+      function updateHistoryBadge() {
+        const count = getHistory().length;
+        const badge = $("history-badge");
+        badge.textContent = count > 99 ? "99+" : String(count);
+        badge.classList.toggle("hidden", count === 0);
+        badge.classList.toggle("flex", count > 0);
+      }
+
+      function setQuery(query) {
+        input.value = query;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+
+      function openExternal(engine, query, fromUserAction = true) {
+        query = String(query || "").trim();
+        if (!query) {
+          announce("Enter a search term first.");
+          input.focus();
+          return;
+        }
+        const url = searchUrl(engine, query);
+        currentQuery = query;
+        saveHistory(query, engine);
+
+        // Direct user-initiated window.open is more likely to be allowed by browsers.
+        const newWindow = window.open(url, "_blank", "noopener,noreferrer");
+        if (newWindow) {
+          announce("Opened " + engines[engine].name + " search in a new tab.");
+        } else {
+          announce("Your browser blocked the new tab. Allow pop-ups, or use the preview link.");
+        }
+      }
+
+      function handleSearch(event) {
+        event.preventDefault();
+        const query = queryValue();
+        if (!query) {
+          announce("Please enter a search term.");
+          input.focus();
+          return;
+        }
+        currentQuery = query;
+        hideSuggestions();
+
+        const splitActive = !$("view-split").classList.contains("hidden");
+        if (splitActive) {
+          getSelectedSplitEngines().forEach(engine => saveHistory(query, engine));
+          renderSplitPanes();
+          announce("Updated comparison for: " + query);
+        } else {
+          openExternal(selectedEngine(), query);
+        }
+      }
+
+      function setQuickEngine(engine) {
+        if (!engines[engine]) return;
+        select.value = engine;
+        document.querySelectorAll(".engine-chip").forEach(button => {
+          const active = button.dataset.engine === engine;
+          button.setAttribute("aria-pressed", String(active));
+          button.classList.toggle("ring-2", active);
+          button.classList.toggle("ring-indigo-400", active);
+        });
+        announce(engines[engine].name + " selected.");
+      }
+
+      function clearInput() {
+        input.value = "";
+        $("clear-input-btn").classList.add("hidden");
+        hideSuggestions();
+        announce("Search field cleared.");
+        input.focus();
+      }
+
+      function switchViewMode(mode) {
+        const split = mode === "split";
+        $("view-single").classList.toggle("hidden", split);
+        $("view-split").classList.toggle("hidden", !split);
+        $("view-split").classList.toggle("flex", split);
+
+        $("mode-single-btn").classList.toggle("bg-indigo-600", !split);
+        $("mode-single-btn").classList.toggle("text-white", !split);
+        $("mode-single-btn").classList.toggle("text-slate-400", split);
+        $("mode-single-btn").setAttribute("aria-pressed", String(!split));
+
+        $("mode-split-btn").classList.toggle("bg-indigo-600", split);
+        $("mode-split-btn").classList.toggle("text-white", split);
+        $("mode-split-btn").classList.toggle("text-slate-400", !split);
+        $("mode-split-btn").setAttribute("aria-pressed", String(split));
+
+        if (split) renderSplitPanes();
+        announce(split ? "Split comparison mode selected." : "Single search mode selected.");
+      }
+
+      function makeEngineCards() {
+        cards.replaceChildren();
+        Object.entries(engines).forEach(([key, engine]) => {
+          const card = document.createElement("article");
+          card.className = "glass-card group relative flex flex-col justify-between overflow-hidden rounded-2xl p-6";
+          const glow = document.createElement("div");
+          glow.className = "pointer-events-none absolute -bottom-6 -right-6 h-32 w-32 rounded-full blur-2xl transition group-hover:opacity-100";
+          glow.style.background = engine.color + "30";
+
+          const content = document.createElement("div");
+          const top = document.createElement("div");
+          top.className = "mb-4 flex items-center justify-between gap-3";
+          const icon = document.createElement("span");
+          icon.className = "flex h-12 w-12 items-center justify-center rounded-xl border text-2xl";
+          icon.style.color = engine.color;
+          icon.style.backgroundColor = engine.color + "22";
+          icon.style.borderColor = engine.color + "55";
+          const iconElement = document.createElement("i");
+          iconElement.className = engine.icon;
+          icon.appendChild(iconElement);
+
+          const tag = document.createElement("span");
+          tag.className = "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider";
+          tag.style.color = engine.color;
+          tag.style.backgroundColor = engine.color + "18";
+          tag.style.borderColor = engine.color + "35";
+          tag.textContent = engine.label;
+          top.append(icon, tag);
+
+          const heading = document.createElement("h3");
+          heading.className = "mb-1 text-lg font-bold text-slate-100";
+          heading.textContent = engine.name;
+          const description = document.createElement("p");
+          description.className = "mb-5 text-xs leading-relaxed text-slate-400";
+          description.textContent = engine.description;
+          content.append(top, heading, description);
+
+          const actions = document.createElement("div");
+          actions.className = "relative z-10 flex items-center gap-2 border-t border-white/10 pt-3";
+          const preview = document.createElement("button");
+          preview.type = "button";
+          preview.className = "focus-ring flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-800 px-3 py-2.5 text-xs font-medium text-slate-200 transition hover:bg-slate-700";
+          preview.innerHTML = '<i class="fa-solid fa-eye" aria-hidden="true"></i><span>Live Preview</span>';
+          preview.addEventListener("click", () => openPreview(key));
+
+          const open = document.createElement("button");
+          open.type = "button";
+          open.className = "focus-ring flex items-center justify-center rounded-xl px-4 py-2.5 text-xs font-semibold text-white transition hover:brightness-110";
+          open.style.backgroundColor = engine.color;
+          open.title = "Open " + engine.name + " in a new tab";
+          open.setAttribute("aria-label", "Open " + engine.name + " search");
+          open.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>';
+          open.addEventListener("click", () => openExternal(key, queryValue() || currentQuery));
+
+          actions.append(preview, open);
+          card.append(glow, content, actions);
+          cards.appendChild(card);
+        });
+      }
+
+      function getSelectedSplitEngines() {
+        return Array.from(document.querySelectorAll('#view-split input[type="checkbox"][value]'))
+          .filter(box => box.checked && engines[box.value])
+          .map(box => box.value);
+      }
+
+      function renderSplitPanes() {
+        splitGrid.replaceChildren();
+        const chosen = getSelectedSplitEngines();
+        const query = queryValue() || currentQuery;
+
+        splitGrid.className = chosen.length > 1
+          ? "grid grid-cols-1 gap-5 lg:grid-cols-2"
+          : "grid grid-cols-1 gap-5";
+
+        if (!chosen.length) {
+          const empty = document.createElement("div");
+          empty.className = "glass-panel rounded-2xl p-8 text-center text-sm text-slate-400";
+          empty.textContent = "Select at least one engine above to compare searches.";
+          splitGrid.appendChild(empty);
+          return;
+        }
+
+        chosen.forEach(engineKey => {
+          const engine = engines[engineKey];
+          const panel = document.createElement("article");
+          panel.className = "glass-panel flex min-w-0 flex-col overflow-hidden rounded-2xl";
+          panel.style.minHeight = "520px";
+
+          const header = document.createElement("div");
+          header.className = "flex flex-wrap items-center justify-between gap-3 border-b border-white/10 p-4";
+          const titleWrap = document.createElement("div");
+          titleWrap.className = "flex min-w-0 items-center gap-2";
+          const dot = document.createElement("span");
+          dot.className = "h-2.5 w-2.5 shrink-0 rounded-full";
+          dot.style.backgroundColor = engine.color;
+          const title = document.createElement("h3");
+          title.className = "truncate text-sm font-semibold";
+          title.textContent = engine.name;
+          titleWrap.append(dot, title);
+
+          const buttonWrap = document.createElement("div");
+          buttonWrap.className = "flex gap-2";
+          const openButton = document.createElement("button");
+          openButton.type = "button";
+          openButton.className = "focus-ring rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold hover:bg-indigo-500";
+          openButton.textContent = "Open results";
+          openButton.addEventListener("click", () => openExternal(engineKey, queryValue() || currentQuery));
+          const previewButton = document.createElement("button");
+          previewButton.type = "button";
+          previewButton.className = "focus-ring rounded-lg bg-slate-800 px-3 py-2 text-xs hover:bg-slate-700";
+          previewButton.textContent = "Preview";
+          previewButton.addEventListener("click", () => openPreview(engineKey));
+          buttonWrap.append(openButton, previewButton);
+          header.append(titleWrap, buttonWrap);
+
+          const iframeWrap = document.createElement("div");
+          iframeWrap.className = "relative flex-1 bg-white";
+          const frame = document.createElement("iframe");
+          frame.title = engine.name + " search results";
+          frame.className = "h-full min-h-[460px] w-full border-0 bg-white";
+          frame.loading = "lazy";
+          frame.referrerPolicy = "no-referrer";
+          frame.src = searchUrl(engineKey, query);
+          iframeWrap.appendChild(frame);
+
+          const note = document.createElement("p");
+          note.className = "border-t border-white/10 bg-slate-900/90 px-4 py-3 text-xs leading-relaxed text-slate-400";
+          note.textContent = query
+            ? "Query: " + query + " — If the embedded page is blocked, choose Open results."
+            : "Enter a query above. If the embedded page is blocked, choose Open results.";
+          panel.append(header, iframeWrap, note);
+          splitGrid.appendChild(panel);
+        });
+      }
+
+      function openPreview(engineKey) {
+        const query = queryValue() || currentQuery;
+        if (!query) {
+          announce("Enter a search term before opening a preview.");
+          input.focus();
+          return;
+        }
+        activePreviewEngine = engineKey;
+        currentQuery = query;
+        saveHistory(query, engineKey);
+        lastFocusedElement = document.activeElement;
+        $("preview-title").textContent = engines[engineKey].name + " — " + query;
+        $("preview-frame").src = searchUrl(engineKey, query);
+        $("preview-open-external").onclick = () => openExternal(activePreviewEngine, query);
+        showModal("preview-modal");
+        $("preview-close-btn").focus();
+      }
+
+      function showModal(id) {
+        const modal = $(id);
+        modal.classList.remove("hidden");
+        requestAnimationFrame(() => modal.classList.add("modal-visible"));
+        document.body.style.overflow = "hidden";
+      }
+
+      function closeModal(id) {
+        const modal = $(id);
+        modal.classList.remove("modal-visible");
+        window.setTimeout(() => modal.classList.add("hidden"), 180);
+        if (id === "preview-modal") $("preview-frame").src = "about:blank";
+        const anotherOpen = ["preview-modal", "history-modal"].some(other =>
+          other !== id && !$(other).classList.contains("hidden")
+        );
+        if (!anotherOpen) document.body.style.overflow = "";
+        if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
+          lastFocusedElement.focus();
+        }
+      }
+
+      function renderHistory() {
+        const list = $("history-list");
+        const history = getHistory();
+        list.replaceChildren();
+        $("history-count").textContent = history.length + (history.length === 1 ? " search" : " searches");
+
+        if (!history.length) {
+          const empty = document.createElement("p");
+          empty.className = "rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400";
+          empty.textContent = "No recent searches yet. Your searches will appear here.";
+          list.appendChild(empty);
+          return;
+        }
+
+        history.forEach(item => {
+          const row = document.createElement("div");
+          row.className = "flex flex-col justify-between gap-3 rounded-xl border border-white/10 bg-slate-900/60 p-3 sm:flex-row sm:items-center";
+          const info = document.createElement("div");
+          info.className = "min-w-0";
+          const query = document.createElement("p");
+          query.className = "break-words text-sm font-medium text-slate-100";
+          query.textContent = item.query;
+          const meta = document.createElement("p");
+          meta.className = "mt-1 text-xs text-slate-400";
+          const date = new Date(item.time);
+          meta.textContent = engines[item.engine].name + " · " +
+            (Number.isNaN(date.getTime()) ? "Previous search" : date.toLocaleString());
+          info.append(query, meta);
+
+          const buttons = document.createElement("div");
+          buttons.className = "flex shrink-0 gap-2";
+          const rerun = document.createElement("button");
+          rerun.type = "button";
+          rerun.className = "focus-ring rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold hover:bg-indigo-500";
+          rerun.textContent = "Search again";
+          rerun.addEventListener("click", () => {
+            setQuery(item.query);
+            setQuickEngine(item.engine);
+            closeModal("history-modal");
+            openExternal(item.engine, item.query);
+          });
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "focus-ring rounded-lg bg-slate-800 px-3 py-2 text-xs hover:bg-slate-700";
+          remove.textContent = "Remove";
+          remove.setAttribute("aria-label", "Remove search " + item.query);
+          remove.addEventListener("click", () => {
+            writeHistory(getHistory().filter(entry =>
+              !(entry.query === item.query && entry.engine === item.engine && entry.time === item.time)
+            ));
+            renderHistory();
+          });
+          buttons.append(rerun, remove);
+          row.append(info, buttons);
+          list.appendChild(row);
+        });
+      }
+
+      function openHistory() {
+        lastFocusedElement = document.activeElement;
+        renderHistory();
+        showModal("history-modal");
+        $("history-close-btn").focus();
+      }
+
+      function clearHistory() {
+        const history = getHistory();
+        if (!history.length) {
+          announce("There is no search history to clear.");
+          return;
+        }
+        if (!window.confirm("Clear all recent searches saved in this browser?")) return;
+        try {
+          localStorage.removeItem(HISTORY_KEY);
+          updateHistoryBadge();
+          renderHistory();
+          announce("Search history cleared.");
+        } catch {
+          announce("This browser did not allow the history to be cleared.");
+        }
+      }
+
+      function hideSuggestions() {
+        const box = $("suggestions");
+        box.classList.add("hidden");
+        box.replaceChildren();
+        suggestionIndex = -1;
+      }
+
+      function showSuggestions() {
+        const typed = queryValue().toLowerCase();
+        const box = $("suggestions");
+        if (!typed) {
+          hideSuggestions();
+          return;
+        }
+        const matches = getHistory()
+          .filter(item => item.query.toLowerCase().includes(typed))
+          .slice(0, 5);
+        box.replaceChildren();
+        if (!matches.length) {
+          hideSuggestions();
+          return;
+        }
+        matches.forEach((item, index) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.role = "option";
+          button.className = "flex w-full items-center justify-between gap-3 border-b border-white/5 px-4 py-3 text-left text-sm last:border-b-0 hover:bg-slate-800";
+          button.dataset.suggestionIndex = String(index);
+          const query = document.createElement("span");
+          query.className = "truncate";
+          query.textContent = item.query;
+          const engine = document.createElement("span");
+          engine.className = "shrink-0 text-xs text-slate-500";
+          engine.textContent = engines[item.engine].shortName;
+          button.append(query, engine);
+          button.addEventListener("click", () => {
+            setQuery(item.query);
+            setQuickEngine(item.engine);
+            hideSuggestions();
+            input.focus();
+          });
+          box.appendChild(button);
+        });
+        box.classList.remove("hidden");
+      }
+
+      function init() {
+        makeEngineCards();
+        updateHistoryBadge();
+
+        $("search-form").addEventListener("submit", handleSearch);
+        $("clear-input-btn").addEventListener("click", () => {
+          input.value = "";
+          $("clear-input-btn").classList.add("hidden");
+          hideSuggestions();
+          announce("Search field cleared.");
+          input.focus();
+        });
+
+        input.addEventListener("input", () => {
+          $("clear-input-btn").classList.toggle("hidden", input.value.length === 0);
+          showSuggestions();
+        });
+
+        input.addEventListener("keydown", event => {
+          const options = Array.from($("suggestions").querySelectorAll("button"));
+          if (event.key === "ArrowDown" && options.length) {
+            event.preventDefault();
+            suggestionIndex = (suggestionIndex + 1) % options.length;
+            options.forEach((option, index) => option.classList.toggle("bg-slate-800", index === suggestionIndex));
+          } else if (event.key === "ArrowUp" && options.length) {
+            event.preventDefault();
+            suggestionIndex = (suggestionIndex - 1 + options.length) % options.length;
+            options.forEach((option, index) => option.classList.toggle("bg-slate-800", index === suggestionIndex));
+          } else if (event.key === "Enter" && suggestionIndex >= 0 && options[suggestionIndex]) {
+            event.preventDefault();
+            options[suggestionIndex].click();
+          } else if (event.key === "Escape") {
+            hideSuggestions();
+          }
+        });
+
+        document.querySelectorAll(".engine-chip").forEach(button =>
+          button.addEventListener("click", () => setQuickEngine(button.dataset.engine))
+        );
+
+        $("mode-single-btn").addEventListener("click", () => switchViewMode("single"));
+        $("mode-split-btn").addEventListener("click", () => switchViewMode("split"));
+        document.querySelectorAll('#view-split input[type="checkbox"]').forEach(box =>
+          box.addEventListener("change", renderSplitPanes)
+        );
+
+        $("history-open-btn").addEventListener("click", openHistory);
+        $("history-close-btn").addEventListener("click", () => closeModal("history-modal"));
+        $("history-clear-btn").addEventListener("click", clearHistory);
+        $("preview-close-btn").addEventListener("click", () => closeModal("preview-modal"));
+
+        ["preview-modal", "history-modal"].forEach(id => {
+          $(id).addEventListener("click", event => {
+            if (event.target === $(id)) closeModal(id);
+          });
+        });
+
+        document.addEventListener("keydown", event => {
+          const target = event.target;
+          const typing = target instanceof HTMLElement &&
+            (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+          if (event.key === "/" && !typing) {
+            event.preventDefault();
+            input.focus();
+          }
+          if (event.key === "Escape") {
+            if (!$("preview-modal").classList.contains("hidden")) closeModal("preview-modal");
+            else if (!$("history-modal").classList.contains("hidden")) closeModal("history-modal");
+            hideSuggestions();
+          }
+        });
+
+        renderSplitPanes();
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+</body>
+</html>
